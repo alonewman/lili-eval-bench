@@ -54,8 +54,8 @@ como régua e nunca é escolhido. Teto de custo de US$ 20 com estimativa antes d
 - **O que a bancada pegou:** vazamento de chamada de ferramenta no roteiro R13 com o gpt-6-luna (o texto que iria
   para a família trazia a chamada da ferramenta). Com esse dado, o responsável decidiu como tratar o defeito (a
   conferência da resposta passou a limpar o vazamento e a bancada passou a reprovar quando isso acontece); hoje o
-  modelo em uso é o gpt-6-luna. Data da rodada: a confirmar.
-- 9 roteiros nascidos do post-mortem de 19/10 (R31–R39, segundo as notas do projeto; a confirmar).
+  modelo em uso é o gpt-6-luna.
+- Roteiros nascidos do post-mortem de 19/10: os marcados "incidente 19/10" em `bench/roteiros/roteiros.json` (R31–R34).
 - Teto de custo por execução da bancada: US$ 20 (o script recusa acima disso sem confirmação).
 
 (Resultados técnicos da bancada. Não são resultados de negócio de nenhuma escola.)
@@ -96,7 +96,7 @@ Node 20 ou mais novo. Nenhuma dependência de produção.
 - O fluxo original roda em n8n; os JSON publicados são sanitizados (comentários dos nós Code removidos) e precisam de
   credenciais e de um banco próprios. A bancada local usa uma versão simplificada.
 - O modo real é um atendente local mínimo (prompt de exemplo + ferramentas declaradas): não reproduz buffer, memória
-  gravada nem aviso real, e não foi exercitado contra a API neste repositório.
+  gravada nem aviso real, e **não foi rodado contra a API** (não validado); o que está demonstrado aqui é o modo replay.
 - O prompt de produção e o esquema real do banco não estão aqui; `atendente/prompt-base.exemplo.txt` e
   `exemplos/sql/` são versões curtas escritas do zero.
 - Classificador de mensagens e busca com reranker existiram em versões anteriores do fluxo e não estão no fluxo publicado.
@@ -105,6 +105,6 @@ Node 20 ou mais novo. Nenhuma dependência de produção.
   as regras e as decisões, e revisou o resultado.
 
 ## Autor
-Ricardo — projeto e operação da Lili (Lili Labs). Contato: a definir.
+Ricardo — projeto e operação da Lili (Lili Labs). GitHub: [alonewman](https://github.com/alonewman).
 
 Licença MIT.
