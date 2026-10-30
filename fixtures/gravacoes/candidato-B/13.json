@@ -1,0 +1,59 @@
+{
+  "id": 13,
+  "modelo": "candidato-B",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "estudante",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "nascimento",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "escola",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "série",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "10 minutos recepção to=functions.marcar_visita {\"p_data\":\"2027-03-10\"}",
+      "tools": [
+        "Horários livres",
+        "Marcar visita"
+      ],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

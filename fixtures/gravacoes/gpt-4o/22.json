@@ -1,0 +1,21 @@
+{
+  "id": 22,
+  "modelo": "gpt-4o",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Desculpe, ajudo apenas com informações da escola.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

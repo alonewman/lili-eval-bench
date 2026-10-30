@@ -1,0 +1,25 @@
+{
+  "id": 19,
+  "modelo": "candidato-A",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Vou chamar alguém da equipe para continuar com você",
+      "tools": [
+        "Precisa de humano"
+      ],
+      "memoriaLida": true,
+      "avisosEquipe": [
+        "Precisa de atendimento humano: +00 00 00000-0000\nResumo da conversa: Motivo: desconto"
+      ],
+      "guarda": []
+    }
+  ]
+}

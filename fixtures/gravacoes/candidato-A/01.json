@@ -1,0 +1,14 @@
+{
+  "id": 1,
+  "modelo": "candidato-A",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

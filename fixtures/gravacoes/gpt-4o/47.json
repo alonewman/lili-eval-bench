@@ -1,0 +1,35 @@
+{
+  "id": 47,
+  "modelo": "gpt-4o",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "série",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "2.100 2.350",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

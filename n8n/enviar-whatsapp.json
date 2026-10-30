@@ -1,0 +1,1702 @@
+{
+  "name": "Enviar WhatsApp (WhatsApp API)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "school_id"
+            },
+            {
+              "name": "telefone"
+            },
+            {
+              "name": "conteudo"
+            },
+            {
+              "name": "acao"
+            },
+            {
+              "name": "message_id"
+            },
+            {
+              "name": "anexo_item"
+            },
+            {
+              "name": "anexo_nome"
+            },
+            {
+              "name": "anexo_mime"
+            },
+            {
+              "name": "anexo_mediatype"
+            },
+            {
+              "name": "anexo_apoio"
+            },
+            {
+              "name": "modo_teste"
+            },
+            {
+              "name": "efeito"
+            }
+          ]
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "Entrada do envio",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "baixar",
+              "leftValue": "={{ $('Entrada do envio').item.json.acao }}",
+              "rightValue": "baixar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000002",
+      "name": "Baixar mídia?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_escola_contexto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "Contexto da saída",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const emojisDeReacao = function emojisDeReacao() {\n  return [\"❤️\", \"👍\", \"🙏\", \"😊\", \"😂\"];\n};\nconst emojiDeReacao = function emojiDeReacao(valor) {\n  const semSeletor = (t) => String(t ?? \"\").split(String.fromCharCode(0xfe0f)).join(\"\");\n  const limpo = semSeletor(valor).trim();\n  if (!limpo) return null;\n  return emojisDeReacao().find((e) => semSeletor(e) === limpo) ?? null;\n};\nconst separarReacao = function separarReacao(texto) {\n  const original = String(texto ?? \"\");\n  const marca = /(^\\s*|[\\[(])\\s*(rea[cç][aã]o|reaction|reagiu\\s+com)\\s*(:?)\\s*([^\\s\\])]*)\\s*[\\])]?/giu;\n  let marcou = false;\n  let primeira = \"\";\n  const resto = original.replace(marca, (achado, abre, palavra, doisPontos, emoji) => {\n    const colchete = abre === \"[\";\n    const soEmoji = emoji !== \"\" && !/[\\p{L}\\p{N}]/u.test(emoji);\n    if (!colchete && !((doisPontos || /^reagiu/i.test(palavra)) && soEmoji)) return achado;\n    if (!marcou) primeira = emoji;\n    marcou = true;\n    return \" \";\n  });\n  if (!marcou) return { texto: original, reacao: null };\n  const limpo = resto\n    .replace(/[ \\t]{2,}/g, \" \")\n    .replace(/[ \\t]+\\n/g, \"\\n\")\n    .replace(/\\n[ \\t]+/g, \"\\n\")\n    .replace(/\\n{3,}/g, \"\\n\\n\")\n    .trim();\n  return { texto: limpo, reacao: emojiDeReacao(primeira) };\n};\nconst ehItemDeLista = function ehItemDeLista(linha) {\n  return /^\\s*(?:[-•*]|\\d{1,2}[.)])\\s+\\S/.test(String(linha ?? \"\"));\n};\nconst abreLista = function abreLista(bloco) {\n  const linhas = String(bloco ?? \"\").split(\"\\n\").map((l) => l.trim()).filter(Boolean);\n  const ultima = linhas[linhas.length - 1] || \"\";\n  return ehItemDeLista(ultima) || /:$/.test(ultima);\n};\nconst limiteDeBlocos = function limiteDeBlocos() {\n  return 4;\n};\nconst quebrarEmBlocos = function quebrarEmBlocos(texto, limite, linhaEmBranco) {\n  const original = String(texto ?? \"\");\n  const bruto = linhaEmBranco === true ? original.replace(/\\r?\\n[ \\t]*\\r?\\n\\s*/g, \"P&\") : original;\n  if (!bruto.includes(\"P&\")) return [original];\n  const max = Number.isInteger(limite) && limite > 0 ? limite : limiteDeBlocos();\n  const juntos = [];\n  for (const parte of bruto.split(\"P&\").map((p) => p.trim()).filter(Boolean)) {\n    const anterior = juntos[juntos.length - 1];\n    if (anterior !== undefined && ehItemDeLista(parte.split(\"\\n\")[0]) && abreLista(anterior)) {\n      juntos[juntos.length - 1] = `${anterior}\\n${parte}`;\n    } else {\n      juntos.push(parte);\n    }\n  }\n  if (!juntos.length) return [\"\"];\n  if (juntos.length <= max) return juntos;\n  return [...juntos.slice(0, max - 1), juntos.slice(max - 1).join(\"\\n\\n\")];\n};\nconst textoSemMarcador = function textoSemMarcador(texto) {\n  return quebrarEmBlocos(texto, 1)[0];\n};\nconst entrada = $('Entrada do envio').first().json || {};\nconst ctx = $('Contexto da saída').first().json || {};\nconst tel = String(entrada.telefone ?? '');\nconst decidirSaida = function decidirSaida(entrada) {\n  const ctx = entrada?.contexto ?? {};\n  const tel = String(entrada?.telefone ?? \"\");\n  const lista = Array.isArray(ctx.modo_teste_numeros) ? ctx.modo_teste_numeros.map(String) : [];\n  const simulacao = ctx.modo_simulacao !== false;\n  const regras = ctx.regras && typeof ctx.regras === \"object\" ? ctx.regras : {};\n  const grupoLiberado = /@g\\.us$/.test(tel) && tel === regras.grupo_avisos_id && regras.grupo_teste_ok === true;\n  const naLista = lista.includes(tel) || grupoLiberado;\n  const desconhecido = !tel || /@(?!g\\.us$)/.test(tel) || (/^[0-9]+$/.test(tel) && !/^[1-9][0-9]{7,14}$/.test(tel));\n  let destino = \"real\";\n  if (desconhecido) destino = \"bloquear\";\n  else if (entrada?.efeito === \"real\" || entrada?.efeito === \"simulado\") destino = entrada.efeito;\n  else if ((simulacao || lista.length > 0) && !naLista) destino = \"bloquear\";\n  else if (simulacao) destino = \"simulado\";\n  if (destino === \"real\" && ctx.slug === \"escola-exemplo\") destino = \"simulado\";\n  const nome = ctx.instancia && ctx.instancia.nome ? ctx.instancia.nome : \"\";\n  return { destino, instancia: nome };\n};\nconst efeito = entrada.efeito === \"real\" || entrada.efeito === \"simulado\" ? entrada.efeito : undefined;\nconst resultado = decidirSaida(efeito ? { telefone: tel, contexto: ctx, efeito } : { telefone: tel, contexto: ctx });\nlet bruto = String(entrada.conteudo ?? '');\ntry {\n  const apoio = $('Apoio do arquivo');\n  if (apoio && apoio.isExecuted) {\n    const frase = String((apoio.first().json || {}).texto || '').trim();\n    if (frase) bruto = frase;\n  }\n} catch (e) {  }\nconst texto = textoSemMarcador(separarReacao(bruto).texto);\nreturn { json: { ...resultado, destino: texto.trim() ? resultado.destino : 'nenhum', texto } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000004",
+      "name": "Decidir saída",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "sim",
+              "leftValue": "={{ $json.destino }}",
+              "rightValue": "simulado",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000005",
+      "name": "Simulado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: $('Decidir saída').item.json.texto, p_message_id: null, p_simulado: true }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000006",
+      "name": "Gravar simulado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "real",
+              "leftValue": "={{ $('Decidir saída').item.json.destino }}",
+              "rightValue": "real",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "com_texto",
+              "leftValue": "={{ String($('Decidir saída').item.json.texto || '').trim() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000007",
+      "name": "Real?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL + '/message/sendText/' + $('Decidir saída').item.json.instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Entrada do envio').item.json.telefone, text: $('Decidir saída').item.json.texto }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000008",
+      "name": "WhatsApp API sendText",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: $('Decidir saída').item.json.texto, p_message_id: $('WhatsApp API sendText').item.json.key && $('WhatsApp API sendText').item.json.key.id, p_simulado: false }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000009",
+      "name": "Gravar envio real",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_escola_contexto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000010",
+      "name": "Contexto do áudio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL + '/chat/getBase64FromMediaMessage/' + $json.instancia.nome }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: { key: { id: $('Entrada do envio').item.json.message_id } }, convertToMp4: true }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000011",
+      "name": "WhatsApp API getBase64",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Único workflow que chama a WhatsApp API. Enviar: POST /message/sendText/{instance} (operationId sendText). Arquivo da base comercial: POST /message/sendMedia/{instance} (operationId sendMedia), com mediatype image (jpg, png, webp) ou document (pdf), tirado do mime; mime fora dessa lista não sai, mimetype, caption, media (link https) e fileName. Áudio: POST /chat/getBase64FromMediaMessage/{instance} (operationId getBase64FromMediaMessage). Corpo exigido: { message: { key: { id } }, convertToMp4 }. convertToMp4 = true: o código 2.3.7 converte o áudio com ffmpeg e devolve mimetype audio/mp4, formato da lista do guia de transcrição da OpenAI (ogg não está nela). OpenAPI https://example.invalid . A resposta 200 da OpenAPI não descreve o corpo; o código 2.3.7 devolve base64 e mimetype: https://example.invalid . A instância sai do banco. Simulação, ou lista de teste com número de fora, não envia. Número da lista que recebe WhatsApp de verdade também recebe o arquivo. A simulação e o painel Testar a Lili (body.modo_teste === true) não chamam sendMedia: gravam o nome do arquivo. A simulação grava em seguida a frase Segue o arquivo. O caminho Testar a Lili do painel não entra neste envio; se a resposta era só a promessa, a frase do assunto sai no próprio teste. A reserva desse caminho vai com p_simulado e não bloqueia o WhatsApp real. O bloqueio é um sendMedia confirmado do mesmo item e número nos últimos 10 minutos (lili_anexo_confirmar, logo depois do sendMedia). Reserva pendente não bloqueia. Se a ferramenta não mandar enviar, a resposta fala do assunto e não comenta envio. Se a resposta era só a promessa de envio, não sai texto antes do arquivo; se o arquivo não sai (recente, falha ou item não encontrado), sai a frase do assunto, sem falar de envio. Decidir saída tira o P& que sobrar no texto (resposta, contingência, avisos), que é o que sai e o que fica gravado. O texto da resposta não promete arquivo. A frase curta de confirmação só sai no sendText depois que sendMedia responde, e na simulação depois que o nome do arquivo é gravado; se o envio falha, essa frase não sai.",
+        "height": 300,
+        "width": 560
+      },
+      "id": "00000000-0000-0000-0000-000000000012",
+      "name": "Nota da WhatsApp API",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -420
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00000000-0000-0000-0000-000000000013",
+      "name": "Fim sem envio",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "anexo",
+              "leftValue": "={{ $('Entrada do envio').item.json.acao }}",
+              "rightValue": "anexo",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000014",
+      "name": "É anexo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        420,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_escola_contexto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000015",
+      "name": "Contexto do anexo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const decidirSaida = function decidirSaida(entrada) {\n  const ctx = entrada?.contexto ?? {};\n  const tel = String(entrada?.telefone ?? \"\");\n  const lista = Array.isArray(ctx.modo_teste_numeros) ? ctx.modo_teste_numeros.map(String) : [];\n  const simulacao = ctx.modo_simulacao !== false;\n  const regras = ctx.regras && typeof ctx.regras === \"object\" ? ctx.regras : {};\n  const grupoLiberado = /@g\\.us$/.test(tel) && tel === regras.grupo_avisos_id && regras.grupo_teste_ok === true;\n  const naLista = lista.includes(tel) || grupoLiberado;\n  const desconhecido = !tel || /@(?!g\\.us$)/.test(tel) || (/^[0-9]+$/.test(tel) && !/^[1-9][0-9]{7,14}$/.test(tel));\n  let destino = \"real\";\n  if (desconhecido) destino = \"bloquear\";\n  else if (entrada?.efeito === \"real\" || entrada?.efeito === \"simulado\") destino = entrada.efeito;\n  else if ((simulacao || lista.length > 0) && !naLista) destino = \"bloquear\";\n  else if (simulacao) destino = \"simulado\";\n  if (destino === \"real\" && ctx.slug === \"escola-exemplo\") destino = \"simulado\";\n  const nome = ctx.instancia && ctx.instancia.nome ? ctx.instancia.nome : \"\";\n  return { destino, instancia: nome };\n};\nconst mediatypeDoMime = function mediatypeDoMime(mime) {\n  const m = String(mime ?? \"\").trim().toLowerCase();\n  if (m === \"image/jpeg\" || m === \"image/png\" || m === \"image/webp\") return \"image\";\n  if (m === \"application/pdf\") return \"document\";\n  return \"\";\n};\nconst mediatypeDoArquivo = function mediatypeDoArquivo(arquivo) {\n  const mime = arquivo && typeof arquivo.mime === \"string\" ? arquivo.mime : \"\";\n  return mediatypeDoMime(mime);\n};\nconst decidirMidia = function decidirMidia(entrada) {\n  const base = decidirSaida(entrada);\n  const arquivo = entrada?.arquivo && typeof entrada.arquivo === \"object\" ? entrada.arquivo : null;\n  const nome = arquivo && typeof arquivo.nome === \"string\" ? arquivo.nome.trim() : \"\";\n  const mime = arquivo && typeof arquivo.mime === \"string\" ? arquivo.mime.trim() : \"\";\n  const mediatype = mediatypeDoArquivo(arquivo);\n  const tem = nome.length > 0 && mime.length > 0 && mediatype.length > 0;\n  const doPainel = entrada?.modo_teste === true;\n  let midia = \"nenhuma\";\n  if (tem && base.destino !== \"bloquear\") {\n    midia = doPainel || base.destino !== \"real\" ? \"registrar\" : \"whatsapp-api\";\n  }\n  return {\n    destino: base.destino,\n    instancia: base.instancia,\n    midia,\n    arquivo: tem ? { nome, mime, mediatype } : null,\n  };\n};\nconst entrada = $('Entrada do envio').first().json || {};\nconst ctx = $('Contexto do anexo').first().json || {};\nconst efeito = entrada.efeito === \"real\" || entrada.efeito === \"simulado\" ? entrada.efeito : undefined;\nconst resultado = decidirMidia({\n  telefone: String(entrada.telefone || ''),\n  contexto: ctx,\n  modo_teste: entrada.modo_teste === true,\n  ...(efeito ? { efeito } : {}),\n  arquivo: {\n    nome: entrada.anexo_nome,\n    mime: entrada.anexo_mime,\n    mediatype: entrada.anexo_mediatype,\n  },\n});\nreturn { json: resultado };"
+      },
+      "id": "00000000-0000-0000-0000-000000000016",
+      "name": "Decidir anexo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "vai",
+              "leftValue": "={{ $json.midia === 'whatsapp-api' || $json.midia === 'registrar' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000017",
+      "name": "Vai enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1260,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_anexo_reservar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_item_id: $('Entrada do envio').item.json.anexo_item, p_simulado: $('Decidir anexo').item.json.midia !== 'whatsapp-api' }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000018",
+      "name": "Reservar anexo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "reservou",
+              "leftValue": "={{ $json.enviar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000019",
+      "name": "Reservou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1820,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "whatsapp-api",
+              "leftValue": "={{ $('Decidir anexo').item.json.midia }}",
+              "rightValue": "whatsapp-api",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000020",
+      "name": "WhatsApp API?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL + '/functions/v1/anexos-comerciais' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'link', school_id: $('Entrada do envio').item.json.school_id, item_id: $('Entrada do envio').item.json.anexo_item, telefone: $('Entrada do envio').item.json.telefone }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000021",
+      "name": "Assinar anexo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "tem",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000022",
+      "name": "Tem link?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2660,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL + '/message/sendMedia/' + $('Decidir anexo').item.json.instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Entrada do envio').item.json.telefone, mediatype: $('Decidir anexo').item.json.arquivo.mediatype, mimetype: $('Decidir anexo').item.json.arquivo.mime, caption: $('Decidir anexo').item.json.arquivo.nome, media: $('Assinar anexo').item.json.url, fileName: $('Decidir anexo').item.json.arquivo.nome }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000023",
+      "name": "WhatsApp API sendMedia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL + '/message/sendText/' + $('Decidir anexo').item.json.instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Entrada do envio').item.json.telefone, text: \"Segue o arquivo.\" }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000024",
+      "name": "Confirmar arquivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: 'Arquivo: ' + $('Decidir anexo').item.json.arquivo.nome, p_message_id: $('WhatsApp API sendMedia').item.json.key && $('WhatsApp API sendMedia').item.json.key.id, p_simulado: false }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000025",
+      "name": "Gravar arquivo real",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: 'Arquivo: ' + $('Decidir anexo').item.json.arquivo.nome, p_message_id: null, p_simulado: true }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000026",
+      "name": "Gravar nome do arquivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: \"Segue o arquivo.\", p_message_id: $('Confirmar arquivo').item.json.key && $('Confirmar arquivo').item.json.key.id, p_simulado: false }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000027",
+      "name": "Gravar fala do arquivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const confirmacaoDeAnexo = function confirmacaoDeAnexo() {\n  return \"Segue o arquivo.\";\n};\nconst resultadoDoArquivo = function resultadoDoArquivo(gravouArquivo, gravouFala, nome) {\n  const arquivoOk = !!(gravouArquivo && gravouArquivo.ok === true);\n  const falaOk = !!(gravouFala && gravouFala.ok === true);\n  const enviado = arquivoOk || falaOk;\n  return {\n    ok: enviado,\n    nome: enviado ? String(nome ?? \"\") : \"\",\n    fala: falaOk ? confirmacaoDeAnexo() : \"\",\n  };\n};\nconst gravouArquivo = $('Gravar arquivo real').first().json || {};\nconst gravouFala = $('Gravar fala do arquivo').first().json || {};\nconst nome = String((($('Decidir anexo').first().json.arquivo || {}).nome) || '');\nreturn { json: resultadoDoArquivo(gravouArquivo, gravouFala, nome) };"
+      },
+      "id": "00000000-0000-0000-0000-000000000028",
+      "name": "Registro do arquivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_anexo_confirmar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_item_id: $('Entrada do envio').item.json.anexo_item }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000029",
+      "name": "Marcar anexo enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const semAcento = function semAcento(texto) {\n  return String(texto ?? \"\")\n    .normalize(\"NFD\")\n    .replace(/[\\u0300-\\u036f]/g, \"\")\n    .toLowerCase();\n};\nconst fraseFalaDeEnvio = function fraseFalaDeEnvio(texto) {\n  const n = semAcento(texto);\n  if (/\\bem anexo\\b/.test(n) || /\\bsegue o arquivo\\b/.test(n)) return true;\n  if (/\\bsegue\\b[^.\\n]{0,40}\\b(arquivo|anexo|pdf|tabela|imagem|foto|documento|planilha)\\b/.test(n)) return true;\n  return /\\b(enviei|enviou|enviamos|enviad[oa]s?|encaminhei|encaminhou|encaminhamos|encaminhad[oa]s?|mandei|mandou|disponibilizei|disponibilizad[oa]|vou enviar|vou mandar|te mando)\\b/.test(n);\n};\nconst entrada = $('Entrada do envio').first().json || {};\nconst texto = String(entrada.anexo_apoio || '').trim();\nconst serve = !!texto && !fraseFalaDeEnvio(texto);\nreturn { json: { texto: serve ? texto : '', tem: serve } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000030",
+      "name": "Apoio do arquivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "tem",
+              "leftValue": "={{ $json.tem }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000031",
+      "name": "Tem apoio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1820,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000032",
+      "name": "Nome gravado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2660,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: \"Segue o arquivo.\", p_message_id: null, p_simulado: true }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000033",
+      "name": "Gravar fala simulada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2940,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const confirmacaoDeAnexo = function confirmacaoDeAnexo() {\n  return \"Segue o arquivo.\";\n};\nconst resultadoDoArquivo = function resultadoDoArquivo(gravouArquivo, gravouFala, nome) {\n  const arquivoOk = !!(gravouArquivo && gravouArquivo.ok === true);\n  const falaOk = !!(gravouFala && gravouFala.ok === true);\n  const enviado = arquivoOk || falaOk;\n  return {\n    ok: enviado,\n    nome: enviado ? String(nome ?? \"\") : \"\",\n    fala: falaOk ? confirmacaoDeAnexo() : \"\",\n  };\n};\nconst gravouArquivo = $('Gravar nome do arquivo').first().json || {};\nlet gravouFala = {};\ntry { gravouFala = $('Gravar fala simulada').first().json || {}; } catch (e) { gravouFala = {}; }\nconst nome = String((($('Decidir anexo').first().json.arquivo || {}).nome) || '');\nreturn { json: resultadoDoArquivo(gravouArquivo, gravouFala, nome) };"
+      },
+      "id": "00000000-0000-0000-0000-000000000034",
+      "name": "Registro simulado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3220,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "reagir",
+              "leftValue": "={{ $('Entrada do envio').item.json.acao }}",
+              "rightValue": "reagir",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000035",
+      "name": "É reação?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_escola_contexto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000036",
+      "name": "Contexto da reação",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        -320
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const emojisDeReacao = function emojisDeReacao() {\n  return [\"❤️\", \"👍\", \"🙏\", \"😊\", \"😂\"];\n};\nconst emojiDeReacao = function emojiDeReacao(valor) {\n  const semSeletor = (t) => String(t ?? \"\").split(String.fromCharCode(0xfe0f)).join(\"\");\n  const limpo = semSeletor(valor).trim();\n  if (!limpo) return null;\n  return emojisDeReacao().find((e) => semSeletor(e) === limpo) ?? null;\n};\nconst decidirReacao = function decidirReacao(entrada) {\n  const e = entrada && typeof entrada === \"object\" ? entrada : {};\n  const ctx = e.contexto && typeof e.contexto === \"object\" ? e.contexto : {};\n  const regras = ctx.regras && typeof ctx.regras === \"object\" ? ctx.regras : {};\n  const reacao = emojiDeReacao(e.conteudo);\n  const id = String(e.message_id ?? \"\").trim();\n  const tel = String(e.telefone ?? \"\");\n  const nada = (motivo) => ({ destino: \"nenhum\", motivo, instancia: \"\", corpo: null, texto: \"\" });\n  if (regras.reage !== true) return nada(\"desligada\");\n  if (!reacao) return nada(\"emoji_fora_da_lista\");\n  if (!id) return nada(\"sem_message_id\");\n  if (!/^[1-9][0-9]{7,14}$/.test(tel)) return nada(\"telefone_invalido\");\n  const saida = e.saida && typeof e.saida === \"object\" ? e.saida : { destino: \"bloquear\", instancia: \"\" };\n  if (saida.destino === \"bloquear\") return nada(\"bloqueado\");\n  if (saida.destino === \"real\" && !saida.instancia) return nada(\"sem_instancia\");\n  return {\n    destino: saida.destino,\n    motivo: \"\",\n    instancia: saida.instancia,\n    corpo: { key: { remoteJid: `${tel}@s.whatsapp.net`, fromMe: false, id }, reaction: reacao },\n    texto: `Reação: ${reacao}`,\n  };\n};\nconst decidirSaida = function decidirSaida(entrada) {\n  const ctx = entrada?.contexto ?? {};\n  const tel = String(entrada?.telefone ?? \"\");\n  const lista = Array.isArray(ctx.modo_teste_numeros) ? ctx.modo_teste_numeros.map(String) : [];\n  const simulacao = ctx.modo_simulacao !== false;\n  const regras = ctx.regras && typeof ctx.regras === \"object\" ? ctx.regras : {};\n  const grupoLiberado = /@g\\.us$/.test(tel) && tel === regras.grupo_avisos_id && regras.grupo_teste_ok === true;\n  const naLista = lista.includes(tel) || grupoLiberado;\n  const desconhecido = !tel || /@(?!g\\.us$)/.test(tel) || (/^[0-9]+$/.test(tel) && !/^[1-9][0-9]{7,14}$/.test(tel));\n  let destino = \"real\";\n  if (desconhecido) destino = \"bloquear\";\n  else if (entrada?.efeito === \"real\" || entrada?.efeito === \"simulado\") destino = entrada.efeito;\n  else if ((simulacao || lista.length > 0) && !naLista) destino = \"bloquear\";\n  else if (simulacao) destino = \"simulado\";\n  if (destino === \"real\" && ctx.slug === \"escola-exemplo\") destino = \"simulado\";\n  const nome = ctx.instancia && ctx.instancia.nome ? ctx.instancia.nome : \"\";\n  return { destino, instancia: nome };\n};\nlet resultado = { destino: 'nenhum', motivo: 'erro', instancia: '', corpo: null, texto: '' };\ntry {\n  const entrada = $('Entrada do envio').first().json || {};\n  const contexto = $('Contexto da reação').first().json || {};\n  const telefone = String(entrada.telefone ?? '');\n  const saida = decidirSaida({ contexto, telefone });\n  resultado = decidirReacao({ contexto, telefone, message_id: entrada.message_id, conteudo: entrada.conteudo, saida });\n} catch (e) {  }\nreturn { json: resultado };"
+      },
+      "id": "00000000-0000-0000-0000-000000000037",
+      "name": "Decidir reação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -320
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "simulada",
+              "leftValue": "={{ $json.destino }}",
+              "rightValue": "simulado",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000038",
+      "name": "Reação simulada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_envio",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: $('Entrada do envio').item.json.school_id, p_telefone: $('Entrada do envio').item.json.telefone, p_texto: $('Decidir reação').item.json.texto, p_message_id: null, p_simulado: true }) }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000039",
+      "name": "Gravar reação simulada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        -400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "real",
+              "leftValue": "={{ $('Decidir reação').item.json.destino }}",
+              "rightValue": "real",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000040",
+      "name": "Reação real?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL + '/message/sendReaction/' + $('Decidir reação').item.json.instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Decidir reação').item.json.corpo) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000041",
+      "name": "WhatsApp API sendReaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        -320
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Entrada do envio": {
+      "main": [
+        [
+          {
+            "node": "Baixar mídia?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar mídia?": {
+      "main": [
+        [
+          {
+            "node": "Contexto do áudio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É anexo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É anexo?": {
+      "main": [
+        [
+          {
+            "node": "Contexto do anexo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É reação?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexto do anexo": {
+      "main": [
+        [
+          {
+            "node": "Decidir anexo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir anexo": {
+      "main": [
+        [
+          {
+            "node": "Vai enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vai enviar?": {
+      "main": [
+        [
+          {
+            "node": "Reservar anexo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apoio do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar anexo": {
+      "main": [
+        [
+          {
+            "node": "Reservou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservou?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp API?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apoio do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp API?": {
+      "main": [
+        [
+          {
+            "node": "Assinar anexo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gravar nome do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assinar anexo": {
+      "main": [
+        [
+          {
+            "node": "Tem link?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem link?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp API sendMedia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apoio do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp API sendMedia": {
+      "main": [
+        [
+          {
+            "node": "Marcar anexo enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar anexo enviado": {
+      "main": [
+        [
+          {
+            "node": "Confirmar arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar arquivo": {
+      "main": [
+        [
+          {
+            "node": "Gravar arquivo real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar arquivo real": {
+      "main": [
+        [
+          {
+            "node": "Gravar fala do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar fala do arquivo": {
+      "main": [
+        [
+          {
+            "node": "Registro do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexto do áudio": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp API getBase64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexto da saída": {
+      "main": [
+        [
+          {
+            "node": "Decidir saída",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir saída": {
+      "main": [
+        [
+          {
+            "node": "Simulado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulado?": {
+      "main": [
+        [
+          {
+            "node": "Gravar simulado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Real?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Real?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp API sendText",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp API sendText": {
+      "main": [
+        [
+          {
+            "node": "Gravar envio real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar nome do arquivo": {
+      "main": [
+        [
+          {
+            "node": "Nome gravado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nome gravado?": {
+      "main": [
+        [
+          {
+            "node": "Gravar fala simulada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apoio do arquivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar fala simulada": {
+      "main": [
+        [
+          {
+            "node": "Registro simulado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apoio do arquivo": {
+      "main": [
+        [
+          {
+            "node": "Tem apoio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem apoio?": {
+      "main": [
+        [
+          {
+            "node": "Contexto da saída",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É reação?": {
+      "main": [
+        [
+          {
+            "node": "Contexto da reação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contexto da saída",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexto da reação": {
+      "main": [
+        [
+          {
+            "node": "Decidir reação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir reação": {
+      "main": [
+        [
+          {
+            "node": "Reação simulada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reação simulada?": {
+      "main": [
+        [
+          {
+            "node": "Gravar reação simulada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reação real?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reação real?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp API sendReaction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

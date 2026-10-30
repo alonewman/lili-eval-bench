@@ -1,0 +1,21 @@
+{
+  "id": 27,
+  "modelo": "gpt-4o",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "dados",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

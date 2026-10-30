@@ -1,0 +1,45 @@
+{
+  "id": 32,
+  "modelo": "candidato-A",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "série",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "memoria": {
+        "nome_responsavel": "Bruno",
+        "nome_aluno": "Tiago Teste da Moraes",
+        "data_nascimento": "27/08/2009",
+        "escola_anterior": "Escola Anterior Exemplo"
+      }
+    },
+    {
+      "output": "1º ano 6º ano",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "equipe",
+      "tools": [
+        "Precisa de humano"
+      ],
+      "memoriaLida": true,
+      "avisosEquipe": [
+        "Precisa de atendimento humano: +00 00 00000-0000\nResumo da conversa: Tiago Teste da Moraes / 27/08/2009"
+      ],
+      "guarda": []
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": 25,
+  "modelo": "candidato-B",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "7h30\n\n24 7h30 24",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "envios": [
+        "7h30",
+        "24 7h30 24"
+      ]
+    }
+  ]
+}

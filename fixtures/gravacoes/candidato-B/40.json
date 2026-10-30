@@ -1,0 +1,18 @@
+{
+  "id": 40,
+  "modelo": "candidato-B",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "Lili\n\nnome Lili Escola Vale do Sol nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "envios": [
+        "Lili",
+        "nome Lili Escola Vale do Sol nome"
+      ]
+    }
+  ]
+}

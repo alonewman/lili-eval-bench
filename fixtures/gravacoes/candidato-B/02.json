@@ -1,0 +1,14 @@
+{
+  "id": 2,
+  "modelo": "candidato-B",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "Lili Escola Vale do Sol nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

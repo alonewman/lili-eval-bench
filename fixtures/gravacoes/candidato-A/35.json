@@ -1,0 +1,49 @@
+{
+  "id": 35,
+  "modelo": "candidato-A",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "memoria": {
+        "nome_responsavel": "Lara",
+        "nome_aluno": "Tiago Moraes",
+        "data_nascimento": "05/05/2018",
+        "escola_anterior": "Escola Y",
+        "serie": "1º ano"
+      }
+    },
+    {
+      "output": "Certidão de nascimento Comprovante de endereço",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "7h às 18h",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "2.100",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    }
+  ]
+}

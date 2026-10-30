@@ -1,0 +1,40 @@
+{
+  "id": 34,
+  "modelo": "candidato-A",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "recepção",
+      "tools": [
+        "Horários livres",
+        "Marcar visita"
+      ],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "visitasAtivas": 1
+    },
+    {
+      "output": "sexta",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "visitasAtivas": 1
+    }
+  ]
+}

@@ -1,0 +1,995 @@
+{
+  "name": "Régua da visita (Lili)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "A cada 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_regua_reservar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limite: 10 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000002",
+      "name": "Reservar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "Uma por vez",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const contextoDoItem = function contextoDoItem(r) {\n  const x = r ?? {};\n  return {\n    reserva_id: x.reserva_id ?? null,\n    school_id: x.school_id ?? null,\n    tipo: x.tipo ?? null,\n    telefone: x.telefone ?? null,\n    nome_responsavel: x.nome_responsavel ?? null,\n    nome_aluno: x.nome_aluno ?? null,\n    lili_nome: x.lili_nome ?? null,\n    visita_dia: x.visita_dia ?? null,\n    visita_hora: x.visita_hora ?? null,\n  };\n};\nconst conferirReserva = async function conferirReserva(reserva, chamar) {\n  const base = contextoDoItem(reserva);\n  if (!base.reserva_id) return { ...base, vale: false, falha: \"sem_reserva\" };\n  try {\n    const vale = await chamar(\"lili_regua_ainda_vale\", { p_id: base.reserva_id });\n    if (!vale || vale.status < 200 || vale.status >= 300) return { ...base, vale: false, falha: `ainda_vale_http_${vale?.status}` };\n    if (vale.body?.vale !== true) return { ...base, vale: false, motivo: String(vale.body?.motivo || \"nao_vale\").slice(0, 100) };\n    const conversa = await chamar(\"lili_regua_conversa\", { p_id: base.reserva_id });\n    if (!conversa || conversa.status < 200 || conversa.status >= 300) {\n      return { ...base, vale: false, falha: `conversa_http_${conversa?.status}` };\n    }\n    const tel = typeof conversa.body === \"string\" ? conversa.body.trim() : \"\";\n    if (!/^[1-9][0-9]{7,14}$/.test(tel)) return { ...base, vale: false, motivo: \"sem_conversa\" };\n    return { ...base, vale: true, telefone: tel };\n  } catch (e) {\n    return { ...base, vale: false, falha: String(e?.message ?? e).slice(0, 150) };\n  }\n};\nconst hostBloqueado = function hostBloqueado(valor, nome = \"N8N_BASE_URL\") {\n  const texto = String(valor ?? \"\").trim();\n  if (texto === \"\") {\n    throw new Error(`${nome} não definido. O coletor não tem endereço padrão.`);\n  }\n  if (!/^https?:\\/\\//.test(texto)) {\n    throw new Error(`${nome} não é uma URL`);\n  }\n  const semBarra = texto.replace(/\\/+$/, \"\");\n  const host = semBarra.replace(/^https?:\\/\\//, \"\").split(\"/\")[0].split(\"@\").pop().split(\":\")[0].toLowerCase();\n  const bloqueado = \"escola_exemplo\" + \"emilia.com.br\";\n  if (host === bloqueado || host.endsWith(\".\" + bloqueado)) {\n    throw new Error(`${nome} recusado`);\n  }\n  return semBarra;\n};\nconst erroRedePassageiro = function erroRedePassageiro(erro) {\n  const marcas = [\"EAI_AGAIN\", \"ENOTFOUND\", \"ETIMEDOUT\", \"ECONNRESET\", \"socket hang up\"];\n  const partes = [];\n  const visto = new Set();\n  let atual = erro;\n  for (let i = 0; atual != null && i < 4; i += 1) {\n    if (typeof atual === \"string\") {\n      partes.push(atual);\n      break;\n    }\n    if (typeof atual !== \"object\") {\n      partes.push(String(atual));\n      break;\n    }\n    if (visto.has(atual)) break;\n    visto.add(atual);\n    if (atual.code != null) partes.push(String(atual.code));\n    if (atual.message != null) partes.push(String(atual.message));\n    atual = atual.cause;\n  }\n  const texto = partes.join(\"\\n\");\n  return marcas.some((marca) => texto.includes(marca));\n};\nconst repetirRede = async function repetirRede(fn, rede) {\n  const esperas = rede && Array.isArray(rede.esperas) ? rede.esperas : [1000, 3000];\n  const dormir = rede && typeof rede.dormir === \"function\"\n    ? rede.dormir\n    : (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n  const total = esperas.length + 1;\n  let ultimo;\n  for (let i = 0; i < total; i += 1) {\n    try {\n      return await fn();\n    } catch (erro) {\n      ultimo = erro;\n      if (!erroRedePassageiro(erro) || i === total - 1) throw erro;\n      await dormir(esperas[i]);\n    }\n  }\n  throw ultimo;\n};\nconst rpc = async function rpc(nome, corpo, rede) {\n  const banco = rede.banco;\n  const anon = rede.anon;\n  const jwt = rede.jwt;\n  const http = rede.http;\n  return repetirRede(async () => {\n    const res = await http({\n      method: \"POST\",\n      url: banco + \"/rest/v1/rpc/\" + nome,\n      headers: {\n        \"content-type\": \"application/json\",\n        apikey: anon,\n        authorization: \"Bearer \" + jwt,\n      },\n      body: corpo,\n      json: true,\n      returnFullResponse: true,\n      ignoreHttpStatusErrors: true,\n    });\n    if (res.statusCode === 401) return { status: 401, body: null };\n    const body = res.body == null || res.body === \"\" ? null : res.body;\n    return { status: res.statusCode, body };\n  }, rede);\n};\nconst conferir = async () => {\n  const reserva = $input.first().json;\n  let chamar;\n  try {\n    const env = (typeof $env === \"object\" && $env) ? $env : {};\n    const rede = {\n      http: (opcoes) => this.helpers.httpRequest({ ...opcoes, timeout: 10000 }),\n      banco: hostBloqueado(env.API_BANCO_URL, \"API_BANCO_URL\"),\n      anon: env.API_BANCO_CHAVE,\n      jwt: env.API_BANCO_JWT,\n    };\n    if (!rede.anon || !rede.jwt) throw new Error(\"faltam API_BANCO_CHAVE ou API_BANCO_JWT\");\n    chamar = (nome, corpo) => rpc(nome, corpo, rede);\n  } catch (erro) {\n    chamar = async () => { throw erro; };\n  }\n  return { json: await conferirReserva(reserva, chamar) };\n};\nreturn await conferir();"
+      },
+      "id": "00000000-0000-0000-0000-000000000004",
+      "name": "Conferir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        120
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const motivoDaFalha = function motivoDaFalha(json, onde) {\n  const e = json?.error;\n  const msg = typeof e === \"string\" ? e : (e?.message ?? json?.message ?? \"falha\");\n  return `${onde}: ${String(msg)}`.slice(0, 180);\n};\nreturn { json: { ok: false, marca_falhou: true, motivo: motivoDaFalha($input.first().json, 'conferir') } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000005",
+      "name": "Falhou ao conferir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const contextoDoItem = function contextoDoItem(r) {\n  const x = r ?? {};\n  return {\n    reserva_id: x.reserva_id ?? null,\n    school_id: x.school_id ?? null,\n    tipo: x.tipo ?? null,\n    telefone: x.telefone ?? null,\n    nome_responsavel: x.nome_responsavel ?? null,\n    nome_aluno: x.nome_aluno ?? null,\n    lili_nome: x.lili_nome ?? null,\n    visita_dia: x.visita_dia ?? null,\n    visita_hora: x.visita_hora ?? null,\n  };\n};\nconst primeiroNome = function primeiroNome(nome) {\n  const primeiro = String(nome ?? \"\").trim().split(/\\s+/)[0] || \"\";\n  return primeiro ? primeiro.charAt(0).toLocaleUpperCase(\"pt-BR\") + primeiro.slice(1) : \"\";\n};\nconst textoDaRegua = function textoDaRegua(item) {\n  const r = item ?? {};\n  const nome = primeiroNome(r.nome_responsavel);\n  const oi = nome ? `Oi, ${nome}!` : \"Oi!\";\n  const lili = String(r.lili_nome ?? \"\").trim() || \"Lili\";\n  const dia = String(r.visita_dia ?? \"\").trim();\n  const hora = String(r.visita_hora ?? \"\").trim();\n  const aluno = primeiroNome(r.nome_aluno);\n  if ((r.tipo === \"lembrete_vespera\" || r.tipo === \"lembrete_dia\") && (!dia || !hora)) return \"\";\n  switch (r.tipo) {\n    case \"lembrete_vespera\":\n      return `${oi} Aqui é a ${lili}. Passando para lembrar da sua visita amanhã, ${dia}, às ${hora}. Pode confirmar? Se precisar mudar o horário, é só me dizer.`;\n    case \"lembrete_dia\":\n      return `${oi} Sua visita é hoje às ${hora}. Se surgir algum imprevisto, me avise por aqui.`;\n    case \"pos_visita_veio\":\n      return `${oi} Agradecemos a sua visita. Ficou alguma dúvida sobre matrícula, valores ou documentos? Estou por aqui.`;\n    case \"pos_visita_faltou\":\n      return `${oi} Sentimos sua falta na visita. Quer marcar outro dia? Posso ver os horários livres.`;\n    case \"followup_proposta\":\n      return `${oi} Conseguiu ver os valores que mandei? Posso tirar dúvidas ou marcar uma visita para você conhecer a escola.`;\n    case \"followup_ficha\":\n      return `${oi} Ficamos no meio da ficha${aluno ? ` de ${aluno}` : \"\"}. Quer continuar? Se preferir, posso marcar uma visita.`;\n    default:\n      return \"\";\n  }\n};\nconst decidirItem = function decidirItem(conferido) {\n  const c = conferido ?? {};\n  const base = contextoDoItem(c);\n  if (c.falha) return { ...base, acao: \"marcar\", status: \"erro\", motivo: `ainda_vale: ${c.falha}`.slice(0, 180) };\n  if (c.vale !== true) return { ...base, acao: \"marcar\", status: \"pulado\", motivo: String(c.motivo || \"nao_vale\").slice(0, 180) };\n  const texto = textoDaRegua(c);\n  if (!texto) return { ...base, acao: \"marcar\", status: \"erro\", motivo: \"sem_texto\" };\n  return { ...base, acao: \"enviar\", texto };\n};\nreturn { json: decidirItem($input.first().json) };"
+      },
+      "id": "00000000-0000-0000-0000-000000000006",
+      "name": "Montar texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "enviar",
+              "leftValue": "={{ $json.acao }}",
+              "rightValue": "enviar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000007",
+      "name": "Vai enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "__WF_ENVIAR_WHATSAPP__",
+          "mode": "id",
+          "cachedResultName": "Enviar WhatsApp (WhatsApp API)"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "school_id": "={{ $json.school_id }}",
+            "telefone": "={{ $json.telefone }}",
+            "conteudo": "={{ $json.texto }}",
+            "acao": "enviar",
+            "message_id": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "school_id",
+              "displayName": "school_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "telefone",
+              "displayName": "telefone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "conteudo",
+              "displayName": "conteudo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "acao",
+              "displayName": "acao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000008",
+      "name": "Enviar",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1680,
+        40
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { saida: $input.first().json } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000009",
+      "name": "Saída do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const motivoDaFalha = function motivoDaFalha(json, onde) {\n  const e = json?.error;\n  const msg = typeof e === \"string\" ? e : (e?.message ?? json?.message ?? \"falha\");\n  return `${onde}: ${String(msg)}`.slice(0, 180);\n};\nreturn { json: { erro_envio: motivoDaFalha($input.first().json, 'envio') } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000010",
+      "name": "Erro do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000011",
+      "name": "Junta o envio",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const contextoDoItem = function contextoDoItem(r) {\n  const x = r ?? {};\n  return {\n    reserva_id: x.reserva_id ?? null,\n    school_id: x.school_id ?? null,\n    tipo: x.tipo ?? null,\n    telefone: x.telefone ?? null,\n    nome_responsavel: x.nome_responsavel ?? null,\n    nome_aluno: x.nome_aluno ?? null,\n    lili_nome: x.lili_nome ?? null,\n    visita_dia: x.visita_dia ?? null,\n    visita_hora: x.visita_hora ?? null,\n  };\n};\nconst statusDoEnvio = function statusDoEnvio(saida) {\n  const s = saida ?? {};\n  if (s.ok === true) return { status: \"enviado\", motivo: s.simulado === true ? \"simulado\" : null };\n  if (s.destino === \"bloquear\" || s.destino === \"nenhum\") return { status: \"pulado\", motivo: `saida_${s.destino}` };\n  if (s.ok === false) return { status: \"erro\", motivo: `registro_${String(s.motivo || \"falhou\").slice(0, 60)}` };\n  return { status: \"erro\", motivo: \"saida_desconhecida\" };\n};\nconst resultadoDoEnvio = function resultadoDoEnvio(junto) {\n  const j = junto ?? {};\n  const base = { ...contextoDoItem(j), texto: j.texto ?? null };\n  if (j.erro_envio) return { ...base, status: \"erro\", motivo: String(j.erro_envio).slice(0, 180) };\n  return { ...base, ...statusDoEnvio(j.saida) };\n};\nreturn { json: resultadoDoEnvio($input.first().json) };"
+      },
+      "id": "00000000-0000-0000-0000-000000000012",
+      "name": "Resultado do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "enviado",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "enviado",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000013",
+      "name": "Saiu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2800,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "value",
+        "key": "=lili:{{ $json.school_id }}:mem:{{ $json.telefone }}",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000014",
+      "name": "Lê memória",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        40
+      ],
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "redis": {
+          "id": "CREDENCIAL_REDIS",
+          "name": "redis (configure)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { memoria_lida: true, memoria_anterior: $input.first().json.value ?? null } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000015",
+      "name": "Memória lida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { memoria_lida: false } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000016",
+      "name": "Memória não lida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000017",
+      "name": "Junta a memória",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const memoriaComRegua = function memoriaComRegua(anterior, texto) {\n  return (String(anterior ?? \"\") + \"\\nLili: \" + String(texto ?? \"\")).slice(-6000);\n};\nconst j = $input.first().json;\nreturn { json: { ...j, memoria: j.memoria_lida === true ? memoriaComRegua(j.memoria_anterior, j.texto) : null } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000018",
+      "name": "Juntar memória",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "lida",
+              "leftValue": "={{ $json.memoria_lida }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000019",
+      "name": "Gravar memória?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4200,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=lili:{{ $json.school_id }}:mem:{{ $json.telefone }}",
+        "keyType": "string",
+        "value": "={{ String($json.memoria) }}",
+        "expire": true,
+        "ttl": 2592000
+      },
+      "id": "00000000-0000-0000-0000-000000000020",
+      "name": "Guarda memória",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4480,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "redis": {
+          "id": "CREDENCIAL_REDIS",
+          "name": "redis (configure)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_regua_marcar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_id: $json.reserva_id, p_status: $json.status, p_motivo: $json.motivo || null }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000021",
+      "name": "Marcar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4480,
+        360
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const motivoDaFalha = function motivoDaFalha(json, onde) {\n  const e = json?.error;\n  const msg = typeof e === \"string\" ? e : (e?.message ?? json?.message ?? \"falha\");\n  return `${onde}: ${String(msg)}`.slice(0, 180);\n};\nreturn { json: { ok: false, marca_falhou: true, motivo: motivoDaFalha($input.first().json, 'marcar') } };"
+      },
+      "id": "00000000-0000-0000-0000-000000000022",
+      "name": "Marcar falhou",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ 20 + Math.floor(Math.random() * 41) }}",
+        "unit": "seconds"
+      },
+      "id": "00000000-0000-0000-0000-000000000023",
+      "name": "Espera entre envios",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5040,
+        360
+      ],
+      "webhookId": "00000000-0000-0000-0000-000000000522"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const resumoDaRodada = function resumoDaRodada(itens) {\n  const r = { enviado: 0, pulado: 0, erro: 0, sem_marca: 0 };\n  for (const item of itens ?? []) {\n    const j = item?.json ?? item ?? {};\n    if (j.ok !== true) r.sem_marca += 1;\n    else if (j.status === \"enviado\" || j.status === \"pulado\" || j.status === \"erro\") r[j.status] += 1;\n    else r.sem_marca += 1;\n  }\n  const falhas = r.erro + r.sem_marca;\n  return {\n    ...r,\n    falhou: falhas > 0,\n    mensagem: falhas > 0 ? `Régua da visita: ${r.erro} envio(s) com erro e ${r.sem_marca} sem marcar nesta rodada.` : \"\",\n  };\n};\nreturn { json: resumoDaRodada($input.all()) };"
+      },
+      "id": "00000000-0000-0000-0000-000000000024",
+      "name": "Resumo da rodada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "falhou",
+              "leftValue": "={{ $json.falhou }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000025",
+      "name": "Teve erro?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BANCO_URL }}/rest/v1/rpc/lili_registrar_evento",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $env.API_BANCO_CHAVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.API_BANCO_JWT }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_school_id: null, p_nivel: 'erro', p_mensagem: $json.mensagem, p_operacao: 'regua-visita', p_contexto: { enviado: $json.enviado, pulado: $json.pulado, erro: $json.erro, sem_marca: $json.sem_marca } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000026",
+      "name": "Registrar evento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        -280
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "Régua da visita: erro na rodada (detalhe em lili_registrar_evento, operação regua-visita)."
+      },
+      "id": "00000000-0000-0000-0000-000000000027",
+      "name": "Falha visível",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Régua da visita (escolas novas). Fica desligada até a etapa 4 (teste real); para testar, Execute workflow à mão em simulação. A cada 15 min reserva até 10 mensagens (lili_regua_reservar: todas as travas estão no banco) e trata uma por vez: Conferir (lili_regua_ainda_vale e o telefone como está na conversa, lili_regua_conversa); texto fixo, sem IA; envio só pelo sub-workflow Enviar WhatsApp (WhatsApp API), que respeita simulação e lista de teste e grava lili_registrar_envio (sem isso o eco fromMe pausaria a conversa); acrescenta Lili: <texto> na memória curta lili:<escola>:mem:<telefone> (30 dias); lili_regua_marcar (enviado, pulado ou erro). O contexto do item segue no $json; Merge (Combine by position) junta o contexto de volta depois do envio e do Redis. Espera de 20 a 60 s entre um item e outro. Falha num item marca erro e segue; se a marcação falhar, a reserva vira erro sozinha em 15 min. Com erro na rodada, grava lili_registrar_evento e a execução termina com erro. Para desligar a régua: desative este workflow.",
+        "height": 320,
+        "width": 560
+      },
+      "id": "00000000-0000-0000-0000-000000000028",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -560
+      ]
+    }
+  ],
+  "connections": {
+    "A cada 15 min": {
+      "main": [
+        [
+          {
+            "node": "Reservar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar": {
+      "main": [
+        [
+          {
+            "node": "Uma por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uma por vez": {
+      "main": [
+        [
+          {
+            "node": "Resumo da rodada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Conferir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir": {
+      "main": [
+        [
+          {
+            "node": "Montar texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falhou ao conferir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falhou ao conferir": {
+      "main": [
+        [
+          {
+            "node": "Espera entre envios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar texto": {
+      "main": [
+        [
+          {
+            "node": "Vai enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vai enviar?": {
+      "main": [
+        [
+          {
+            "node": "Enviar",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Junta o envio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar": {
+      "main": [
+        [
+          {
+            "node": "Saída do envio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Erro do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saída do envio": {
+      "main": [
+        [
+          {
+            "node": "Junta o envio",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Erro do envio": {
+      "main": [
+        [
+          {
+            "node": "Junta o envio",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Junta o envio": {
+      "main": [
+        [
+          {
+            "node": "Resultado do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resultado do envio": {
+      "main": [
+        [
+          {
+            "node": "Saiu?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saiu?": {
+      "main": [
+        [
+          {
+            "node": "Lê memória",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Junta a memória",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê memória": {
+      "main": [
+        [
+          {
+            "node": "Memória lida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Memória não lida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória lida": {
+      "main": [
+        [
+          {
+            "node": "Junta a memória",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Memória não lida": {
+      "main": [
+        [
+          {
+            "node": "Junta a memória",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Junta a memória": {
+      "main": [
+        [
+          {
+            "node": "Juntar memória",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar memória": {
+      "main": [
+        [
+          {
+            "node": "Gravar memória?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar memória?": {
+      "main": [
+        [
+          {
+            "node": "Guarda memória",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar": {
+      "main": [
+        [
+          {
+            "node": "Espera entre envios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar falhou",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar falhou": {
+      "main": [
+        [
+          {
+            "node": "Espera entre envios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera entre envios": {
+      "main": [
+        [
+          {
+            "node": "Uma por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumo da rodada": {
+      "main": [
+        [
+          {
+            "node": "Teve erro?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teve erro?": {
+      "main": [
+        [
+          {
+            "node": "Registrar evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar evento": {
+      "main": [
+        [
+          {
+            "node": "Falha visível",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# Usa as regras padrão e libera um falso positivo revisado: leitura de variável de ambiente sem valor literal.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "leitura de variavel de ambiente do n8n"
+regexTarget = "match"
+regexes = ['''env\.N8N_API_KEY''', '''rede\.key''']

@@ -1,0 +1,149 @@
+{
+  "estimativa": {
+    "turnos": 172,
+    "audios": 1,
+    "rodadas": 2,
+    "modelos": [
+      {
+        "modelo": "gpt-4o",
+        "porTurno": 0.0425,
+        "turnos": 172,
+        "rodadas": 2,
+        "total": 14.620000000000001
+      },
+      {
+        "modelo": "candidato-A",
+        "porTurno": 0.0068,
+        "turnos": 172,
+        "rodadas": 2,
+        "total": 2.3392
+      },
+      {
+        "modelo": "candidato-B",
+        "porTurno": 0.001715,
+        "turnos": 172,
+        "rodadas": 2,
+        "total": 0.5899599999999999
+      }
+    ],
+    "audioTotal": 0.018000000000000002,
+    "total": 17.567160000000005,
+    "teto": 20
+  },
+  "relatorios": [
+    {
+      "modelo": "gpt-4o",
+      "passa": false,
+      "motivo": "gpt-4o não pode ser escolhido",
+      "custoReal": 14.620000000000001
+    },
+    {
+      "modelo": "candidato-A",
+      "passa": true,
+      "motivo": "passou nas duas rodadas",
+      "custoReal": 2.3392,
+      "falhas": 0,
+      "avisos": 2,
+      "pendentes": 0
+    },
+    {
+      "modelo": "candidato-B",
+      "passa": false,
+      "motivo": "há roteiro crítico reprovado",
+      "custoReal": 0.5899599999999999,
+      "falhas": 2,
+      "avisos": 3,
+      "pendentes": 0
+    }
+  ],
+  "escolha": {
+    "escolhido": "candidato-A",
+    "motivo": "menor custo entre os que passaram"
+  },
+  "detalhes": {
+    "gpt-4o": [
+      {
+        "id": 21,
+        "nome": "Fora de escopo",
+        "critico": false,
+        "julgamento": "aviso",
+        "falhas": [
+          "faltou \"Desculpe, ajudo apenas com informações da escola.\""
+        ]
+      }
+    ],
+    "candidato-A": [
+      {
+        "id": 1,
+        "nome": "Saudação",
+        "critico": false,
+        "julgamento": "aviso",
+        "falhas": [
+          "faltou \"Lili\"",
+          "faltou \"Escola Vale do Sol\"",
+          "faltou \"nome | como você se chama | como se chama | como posso chamar | como posso te chamar\""
+        ]
+      },
+      {
+        "id": 21,
+        "nome": "Fora de escopo",
+        "critico": false,
+        "julgamento": "aviso",
+        "falhas": [
+          "faltou \"Desculpe, ajudo apenas com informações da escola.\""
+        ]
+      }
+    ],
+    "candidato-B": [
+      {
+        "id": 1,
+        "nome": "Saudação",
+        "critico": false,
+        "julgamento": "aviso",
+        "falhas": [
+          "faltou \"Lili\"",
+          "faltou \"Escola Vale do Sol\"",
+          "faltou \"nome | como você se chama | como se chama | como posso chamar | como posso te chamar\""
+        ]
+      },
+      {
+        "id": 3,
+        "nome": "Coleta aos poucos",
+        "critico": false,
+        "julgamento": "aviso",
+        "falhas": [
+          "faltou \"1º ano\"",
+          "faltou \"2.100\""
+        ]
+      },
+      {
+        "id": 13,
+        "nome": "Marcar visita",
+        "critico": true,
+        "julgamento": "falha",
+        "falhas": [
+          "vazamento de chamada de ferramenta na mensagem"
+        ]
+      },
+      {
+        "id": 21,
+        "nome": "Fora de escopo",
+        "critico": false,
+        "julgamento": "aviso",
+        "falhas": [
+          "faltou \"Desculpe, ajudo apenas com informações da escola.\""
+        ]
+      },
+      {
+        "id": 33,
+        "nome": "Atividade fora do bloco e por quê (incidente 19/10)",
+        "critico": true,
+        "julgamento": "falha",
+        "falhas": [
+          "a equipe não recebeu o aviso de humano com resumo",
+          "não chamou Precisa de humano (na ordem)"
+        ]
+      }
+    ]
+  }
+}

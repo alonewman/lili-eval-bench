@@ -1,0 +1,39 @@
+{
+  "id": 39,
+  "modelo": "gpt-4o",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "Certo.",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "equipe",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "equipe",
+      "tools": [
+        "Precisa de humano"
+      ],
+      "memoriaLida": true,
+      "avisosEquipe": [
+        "Precisa de atendimento humano: +00 00 00000-0000\nResumo da conversa: família pediu atendimento"
+      ],
+      "guarda": []
+    }
+  ]
+}

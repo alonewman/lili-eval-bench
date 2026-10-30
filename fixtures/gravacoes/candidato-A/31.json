@@ -1,0 +1,57 @@
+{
+  "id": 31,
+  "modelo": "candidato-A",
+  "sintetico": true,
+  "turnos": [
+    {
+      "output": "nome",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": []
+    },
+    {
+      "output": "estudante",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "memoria": {
+        "nome_responsavel": "bruno"
+      }
+    },
+    {
+      "output": "nascimento",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "memoria": {
+        "nome_aluno": "Tiago teste"
+      }
+    },
+    {
+      "output": "escola",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "memoria": {
+        "data_nascimento": "27/08/2009"
+      }
+    },
+    {
+      "output": "série",
+      "tools": [],
+      "memoriaLida": true,
+      "avisosEquipe": [],
+      "guarda": [],
+      "memoria": {
+        "nome_responsavel": "bruno",
+        "nome_aluno": "Tiago teste",
+        "data_nascimento": "27/08/2009",
+        "escola_anterior": "Escola Anterior Exemplo"
+      }
+    }
+  ]
+}

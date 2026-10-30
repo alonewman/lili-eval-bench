@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.*
+!n8n/.env.exemplo
+relatorios/*
+!relatorios/exemplo/
+resultado*.json
